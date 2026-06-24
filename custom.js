@@ -1,21 +1,85 @@
 function main(config) {
-  config["proxy-groups"] = [
+  // 获取所有代理节点
+  const allProxies = config.proxies || [];
+
+  // 地区过滤规则：会根据订阅内实际节点动态生成地区组，避免空分组。
+  const regionFilters = {
+    "美国节点": {
+      icon: "https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/United_States.png",
+      filter: "(?i)美|波特兰|达拉斯|俄勒冈|凤凰城|费利蒙|硅谷|拉斯维加斯|洛杉矶|圣何塞|圣克拉拉|西雅图|芝加哥|US|United States"
+    },
+    "香港节点": {
+      icon: "https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Hong_Kong.png",
+      filter: "(?i)港|HK|hk|Hong Kong|HongKong|hongkong"
+    },
+    "台湾节点": {
+      icon: "https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Taiwan.png",
+      filter: "(?i)台|新北|彰化|TW|Taiwan"
+    },
+    "狮城节点": {
+      icon: "https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Singapore.png",
+      filter: "(?i)新加坡|坡|狮城|SG|Singapore"
+    },
+    "日本节点": {
+      icon: "https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Japan.png",
+      filter: "(?i)日本|川日|东京|大阪|泉日|埼玉|沪日|深日|JP|Japan"
+    },
+    "韩国节点": {
+      icon: "https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Korea.png",
+      filter: "(?i)KR|Korea|KOR|首尔|韩|韓"
+    }
+  };
+
+  const stripInlineIgnoreCase = (pattern) => pattern.replace(/\(\?i\)/g, "");
+  const toJsRegex = (pattern) => new RegExp(stripInlineIgnoreCase(pattern), "i");
+
+  const availableRegions = [];
+  for (const [regionName, regionConfig] of Object.entries(regionFilters)) {
+    const regex = toJsRegex(regionConfig.filter);
+    const matchedProxies = allProxies.filter((proxy) => proxy && proxy.name && regex.test(proxy.name));
+    if (matchedProxies.length > 0) availableRegions.push(regionName);
+  }
+
+  const excludePatternBody = Object.values(regionFilters)
+    .map((regionConfig) => stripInlineIgnoreCase(regionConfig.filter))
+    .join("|");
+  const otherRegex = new RegExp(excludePatternBody, "i");
+  const otherProxies = allProxies.filter((proxy) => proxy && proxy.name && !otherRegex.test(proxy.name));
+  const hasOtherNodes = otherProxies.length > 0;
+  const otherGroupName = hasOtherNodes ? ["其他节点"] : [];
+
+  const regionAndOther = [...availableRegions, ...otherGroupName];
+
+  const pick = (items) => {
+    const validGroupNames = new Set([
+      "节点选择",
+      "自动选择",
+      "手动切换",
+      "DIRECT",
+      ...regionAndOther
+    ]);
+    return [...new Set(items)].filter((item) => validGroupNames.has(item));
+  };
+
+  const policyProxyOptions = pick(["自动选择", ...regionAndOther, "手动切换", "DIRECT"]);
+  const proxyFirstOptions = pick(["节点选择", "自动选择", ...regionAndOther, "手动切换", "DIRECT"]);
+  const directFirstOptions = pick(["DIRECT", "节点选择", "自动选择", ...regionAndOther, "手动切换"]);
+  const usFirstOptions = pick(["美国节点", "节点选择", "自动选择", "狮城节点", "香港节点", "台湾节点", "日本节点", "韩国节点", "其他节点", "手动切换", "DIRECT"]);
+  const gameOptions = pick(["节点选择", "自动选择", "DIRECT", ...regionAndOther, "手动切换"]);
+
+  const proxyGroups = [
     {
       name: "GLOBAL",
       icon: "https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Global.png",
       "include-all": true,
       type: "select",
-      proxies: [
-        "节点选择", "自动选择", "手动切换", "美国节点", "香港节点", "台湾节点", "狮城节点", "日本节点", "韩国节点", "其他节点"
-      ]
+      proxies: pick(["节点选择", "自动选择", "手动切换", ...regionAndOther])
     },
     {
       name: "节点选择",
       icon: "https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Proxy.png",
       type: "select",
-      proxies: [
-        "自动选择", "香港节点", "台湾节点", "狮城节点", "美国节点", "日本节点", "韩国节点", "其他节点", "手动切换", "DIRECT"
-      ]
+      proxies: policyProxyOptions
     },
     {
       name: "自动选择",
@@ -35,186 +99,97 @@ function main(config) {
       name: "谷歌服务",
       icon: "https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Google_Search.png",
       type: "select",
-      proxies: [
-        "美国节点", "节点选择", "自动选择", "香港节点", "台湾节点", "狮城节点", "日本节点", "韩国节点", "其他节点", "手动切换", "DIRECT"
-      ]
+      proxies: usFirstOptions
     },
     {
       name: "AI节点",
       icon: "https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Bot.png",
       type: "select",
-      proxies: [
-        "美国节点", "节点选择", "自动选择", "狮城节点", "香港节点", "台湾节点", "日本节点", "韩国节点", "其他节点", "手动切换", "DIRECT"
-      ]
+      proxies: usFirstOptions
     },
     {
       name: "油管视频",
       icon: "https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/YouTube.png",
       type: "select",
-      proxies: [
-        "美国节点", "节点选择", "自动选择", "狮城节点", "香港节点", "台湾节点", "日本节点", "韩国节点", "其他节点", "手动切换", "DIRECT"
-      ]
+      proxies: usFirstOptions
     },
     {
       name: "游戏平台",
       icon: "https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Game.png",
       type: "select",
-      proxies: [
-        "节点选择", "自动选择", "DIRECT", "美国节点", "香港节点", "台湾节点", "狮城节点", "日本节点", "韩国节点", "其他节点", "手动切换"
-      ]
-    },
-    {
-      name: "电报消息",
-      icon: "https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Telegram.png",
-      type: "select",
-      proxies: [
-        "节点选择", "自动选择", "美国节点", "狮城节点", "香港节点", "台湾节点", "日本节点", "韩国节点", "其他节点", "手动切换", "DIRECT"
-      ]
+      proxies: gameOptions
     },
     {
       name: "奈飞视频",
       icon: "https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Netflix.png",
       type: "select",
-      proxies: [
-        "节点选择", "自动选择", "美国节点", "狮城节点", "香港节点", "台湾节点", "日本节点", "韩国节点", "其他节点", "手动切换", "DIRECT"
-      ]
+      proxies: proxyFirstOptions
     },
     {
       name: "国外媒体",
       icon: "https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/ForeignMedia.png",
       type: "select",
-      proxies: [
-        "节点选择", "自动选择", "美国节点", "香港节点", "台湾节点", "狮城节点", "日本节点", "韩国节点", "其他节点", "手动切换", "DIRECT"
-      ]
+      proxies: proxyFirstOptions
     },
     {
       name: "国内媒体",
       icon: "https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/DomesticMedia.png",
       type: "select",
-      proxies: [
-        "DIRECT", "美国节点", "香港节点", "台湾节点", "狮城节点", "日本节点", "韩国节点", "其他节点", "手动切换"
-      ]
+      proxies: directFirstOptions
     },
     {
       name: "谷歌FCM",
       icon: "https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Google_Search.png",
       type: "select",
-      proxies: [
-        "DIRECT", "节点选择", "自动选择", "美国节点", "香港节点", "台湾节点", "狮城节点", "日本节点", "韩国节点", "其他节点", "手动切换"
-      ]
-    },
-    {
-      name: "微软Bing",
-      icon: "https://testingcf.jsdelivr.net/gh/shindgewongxj/WHATSINStash@master/icon/bing.png",
-      type: "select",
-      proxies: [
-        "DIRECT", "节点选择", "自动选择", "美国节点", "香港节点", "台湾节点", "狮城节点", "日本节点", "韩国节点", "其他节点", "手动切换"
-      ]
-    },
-    {
-      name: "微软云盘",
-      icon: "https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/OneDrive.png",
-      type: "select",
-      proxies: [
-        "DIRECT", "节点选择", "自动选择", "美国节点", "香港节点", "台湾节点", "狮城节点", "日本节点", "韩国节点", "其他节点", "手动切换"
-      ]
-    },
-    {
-      name: "微软服务",
-      icon: "https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Microsoft.png",
-      type: "select",
-      proxies: [
-        "DIRECT", "节点选择", "自动选择", "美国节点", "香港节点", "台湾节点", "狮城节点", "日本节点", "韩国节点", "其他节点", "手动切换"
-      ]
+      proxies: directFirstOptions
     },
     {
       name: "苹果服务",
       icon: "https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Apple.png",
       type: "select",
-      proxies: [
-        "DIRECT", "节点选择", "自动选择", "美国节点", "香港节点", "台湾节点", "狮城节点", "日本节点", "韩国节点", "其他节点", "手动切换"
-      ]
+      proxies: directFirstOptions
     },
     {
       name: "全球直连",
       icon: "https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Direct.png",
       type: "select",
-      proxies: [
-        "DIRECT", "节点选择", "自动选择"
-      ]
+      proxies: ["DIRECT", "节点选择", "自动选择"]
     },
     {
       name: "漏网之鱼",
       icon: "https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Final.png",
       type: "select",
-      proxies: [
-        "节点选择", "自动选择", "DIRECT", "美国节点", "香港节点", "台湾节点", "狮城节点", "日本节点", "韩国节点", "其他节点", "手动切换"
-      ]
-    },
-    {
-      name: "美国节点",
-      icon: "https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/United_States.png",
+      proxies: pick(["节点选择", ...regionAndOther, "自动选择", "手动切换", "DIRECT"])
+    }
+  ];
+
+  for (const [regionName, regionConfig] of Object.entries(regionFilters)) {
+    if (!availableRegions.includes(regionName)) continue;
+    proxyGroups.push({
+      name: regionName,
+      icon: regionConfig.icon,
       "include-all": true,
-      filter: "(?i)美|波特兰|达拉斯|俄勒冈|凤凰城|费利蒙|硅谷|拉斯维加斯|洛杉矶|圣何塞|圣克拉拉|西雅图|芝加哥|US|United States",
+      filter: regionConfig.filter,
       type: "url-test",
       interval: 300,
       tolerance: 50
-    },
-    {
-      name: "香港节点",
-      icon: "https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Hong_Kong.png",
-      "include-all": true,
-      filter: "(?i)港|HK|hk|Hong Kong|HongKong|hongkong",
-      type: "url-test",
-      interval: 300,
-      tolerance: 50
-    },
-    {
-      name: "台湾节点",
-      icon: "https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Taiwan.png",
-      "include-all": true,
-      filter: "(?i)台|新北|彰化|TW|Taiwan",
-      type: "url-test",
-      interval: 300,
-      tolerance: 50
-    },
-    {
-      name: "狮城节点",
-      icon: "https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Singapore.png",
-      "include-all": true,
-      filter: "(?i)新加坡|坡|狮城|SG|Singapore",
-      type: "url-test",
-      interval: 300,
-      tolerance: 50
-    },
-    {
-      name: "日本节点",
-      icon: "https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Japan.png",
-      "include-all": true,
-      filter: "(?i)日本|川日|东京|大阪|泉日|埼玉|沪日|深日|JP|Japan",
-      type: "url-test",
-      interval: 300,
-      tolerance: 50
-    },
-    {
-      name: "韩国节点",
-      icon: "https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Korea.png",
-      "include-all": true,
-      filter: "(?i)KR|Korea|KOR|首尔|韩|韓",
-      type: "url-test",
-      interval: 300,
-      tolerance: 50
-    },
-    {
+    });
+  }
+
+  if (hasOtherNodes) {
+    proxyGroups.push({
       name: "其他节点",
       icon: "https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Global.png",
       "include-all": true,
-      "exclude-filter": "(?i)港|HK|hk|Hong Kong|HongKong|hongkong|台|新北|彰化|TW|Taiwan|新加坡|坡|狮城|SG|Singapore|美|波特兰|达拉斯|俄勒冈|凤凰城|费利蒙|硅谷|拉斯维加斯|洛杉矶|圣何塞|圣克拉拉|西雅图|芝加哥|US|United States|日本|川日|东京|大阪|泉日|埼玉|沪日|深日|JP|Japan|KR|Korea|KOR|首尔|韩|韓",
+      "exclude-filter": `(?i)${excludePatternBody}`,
       type: "url-test",
       interval: 300,
       tolerance: 50
-    }
-  ];
+    });
+  }
+
+  config["proxy-groups"] = proxyGroups;
+
   config["rule-providers"] = {
     LocalAreaNetwork: {
       url: "https://testingcf.jsdelivr.net/gh/ACL4SSR/ACL4SSR@master/Clash/LocalAreaNetwork.list",
@@ -440,11 +415,11 @@ function main(config) {
     "RULE-SET,GoogleFCM,谷歌FCM",
     "RULE-SET,GoogleCN,全球直连",
     "RULE-SET,SteamCN,全球直连",
-    "RULE-SET,Bing,微软Bing",
-    "RULE-SET,OneDrive,微软云盘",
-    "RULE-SET,Microsoft,微软服务",
+    "RULE-SET,Bing,全球直连",
+    "RULE-SET,OneDrive,全球直连",
+    "RULE-SET,Microsoft,全球直连",
     "RULE-SET,Apple,苹果服务",
-    "RULE-SET,Telegram,电报消息",
+    "RULE-SET,Telegram,节点选择",
     "RULE-SET,AI平台-国外,AI节点", 
     "RULE-SET,Epic,游戏平台",
     "RULE-SET,Origin,游戏平台",
