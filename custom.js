@@ -34,29 +34,32 @@ function main(config) {
   const toJsRegex = (pattern) => new RegExp(stripInlineIgnoreCase(pattern), "i");
   const proRegex = /Pro/i;
   const toProGroupName = (regionName) => `${regionName}Pro`;
-  const toProRegionFilter = (regionFilter) => {
-    const regionBody = stripInlineIgnoreCase(regionFilter);
-    return `(?i)(Pro.*(${regionBody})|(${regionBody}).*Pro)`;
-  };
-  const isProNode = (proxy) => proxy && proxy.name && proRegex.test(proxy.name);
+  const isNamedProxy = (proxy) => proxy && proxy.name;
+  const toProxyNames = (proxies) => proxies.filter(isNamedProxy).map((proxy) => proxy.name);
+  const isProNode = (proxy) => isNamedProxy(proxy) && proRegex.test(proxy.name);
 
+  const allProxyNames = toProxyNames(allProxies);
   const availableRegions = [];
   const availableProRegions = [];
   const regionAndOther = [];
+  const regionProxyNames = {};
+  const proRegionProxyNames = {};
 
   for (const [regionName, regionConfig] of Object.entries(regionFilters)) {
     const regex = toJsRegex(regionConfig.filter);
-    const matchedProxies = allProxies.filter((proxy) => proxy && proxy.name && regex.test(proxy.name));
+    const matchedProxies = allProxies.filter((proxy) => isNamedProxy(proxy) && regex.test(proxy.name));
     const proProxies = matchedProxies.filter((proxy) => isProNode(proxy));
 
     if (matchedProxies.length > 0) {
       availableRegions.push(regionName);
       regionAndOther.push(regionName);
+      regionProxyNames[regionName] = toProxyNames(matchedProxies);
     }
     if (proProxies.length > 0) {
       const proGroupName = toProGroupName(regionName);
       availableProRegions.push(proGroupName);
       regionAndOther.push(proGroupName);
+      proRegionProxyNames[proGroupName] = toProxyNames(proProxies);
     }
   }
 
@@ -64,8 +67,9 @@ function main(config) {
     .map((regionConfig) => stripInlineIgnoreCase(regionConfig.filter))
     .join("|");
   const otherRegex = new RegExp(excludePatternBody, "i");
-  const otherProxies = allProxies.filter((proxy) => proxy && proxy.name && !otherRegex.test(proxy.name));
-  const hasOtherNodes = otherProxies.length > 0;
+  const otherProxies = allProxies.filter((proxy) => isNamedProxy(proxy) && !otherRegex.test(proxy.name));
+  const otherProxyNames = toProxyNames(otherProxies);
+  const hasOtherNodes = otherProxyNames.length > 0;
   if (hasOtherNodes) regionAndOther.push("其他节点");
 
   const pick = (items) => {
@@ -89,7 +93,6 @@ function main(config) {
     {
       name: "GLOBAL",
       icon: "https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Global.png",
-      "include-all": true,
       type: "select",
       proxies: pick(["节点选择", "自动选择", "手动切换", ...regionAndOther])
     },
@@ -103,15 +106,15 @@ function main(config) {
       name: "自动选择",
       icon: "https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Auto.png",
       type: "url-test",
-      "include-all": true,
+      proxies: allProxyNames,
       interval: 300,
       tolerance: 50
     },
     {
       name: "手动切换",
       icon: "https://testingcf.jsdelivr.net/gh/shindgewongxj/WHATSINStash@master/icon/select.png",
-      "include-all": true,
-      type: "select"
+      type: "select",
+      proxies: allProxyNames
     },
     {
       name: "谷歌服务",
@@ -186,9 +189,8 @@ function main(config) {
       proxyGroups.push({
         name: regionName,
         icon: regionConfig.icon,
-        "include-all": true,
-        filter: regionConfig.filter,
         type: "url-test",
+        proxies: regionProxyNames[regionName],
         interval: 300,
         tolerance: 50
       });
@@ -199,9 +201,8 @@ function main(config) {
       proxyGroups.push({
         name: proGroupName,
         icon: regionConfig.icon,
-        "include-all": true,
-        filter: toProRegionFilter(regionConfig.filter),
         type: "url-test",
+        proxies: proRegionProxyNames[proGroupName],
         interval: 300,
         tolerance: 50
       });
@@ -212,9 +213,8 @@ function main(config) {
     proxyGroups.push({
       name: "其他节点",
       icon: "https://testingcf.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Global.png",
-      "include-all": true,
-      "exclude-filter": `(?i)${excludePatternBody}`,
       type: "url-test",
+      proxies: otherProxyNames,
       interval: 300,
       tolerance: 50
     });
